@@ -1,0 +1,68 @@
+
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master ]
+
+
+jobs:
+
+  build:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        target:
+          - aarch64-linux-musl
+          - arm-linux-musleabi
+          - arm-linux-musleabihf
+          - i686-linux-musl
+          - riscv64-linux-musl
+          - x86_64-linux-musl
+          - x86_64-linux-muslx32
+
+    steps:
+      - uses: actions/checkout@v2
+        
+      - name: Configure caching 
+        uses: actions/cache@v2
+        # Caching disabled on macos due to https://github.com/actions/cache/issues/403
+        if: ${{ matrix.os != 'macos-latest' }}
+        with:
+          key: ${{ matrix.os }}-${{ matrix.target }}
+          path: |
+            Sources/
+            output/
+            binutils-*/
+            gcc-*/
+            musl-*/
+            gmp-*/
+            mpc-*/
+            mpfr-*/
+            build-*/
+            linux-*/
+            isl-*/
+            build/
+
+      - name: Build MUSL
+        run: TARGET=${{ matrix.target }} make -j
+
+      - name: Package outputs
+        run: tar -cf musl-${{ matrix.os }}-${{ matrix.target }}.tgz -C build/local ${{matrix.target}}
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v1
+        with:
+          name: musl-${{ matrix.os }}-${{ matrix.target }}.tgz
+          path: musl-${{ matrix.os }}-${{ matrix.target }}.tgz
+
